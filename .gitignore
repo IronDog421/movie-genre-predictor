@@ -1,0 +1,10 @@
+**.*.joblib
+**.*.pickle
+**.*.pkl
+**/__pycache__/
+**/*.pyc
+.vscode/
+.DS_Store
+.idea/
+.env
+.env.*
