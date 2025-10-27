@@ -1,10 +1,35 @@
-**.*.joblib
-**.*.pickle
-**.*.pkl
+# Modelos entrenados (muy grandes para GitHub)
+**/*.joblib
+**/*.pickle
+**/*.pkl
+**/*.h5
+**/*.pt
+**/*.pth
+**/*.onnx
+
+# Resultados y logs de entrenamiento
+**/distilbert_model/
+**/distilbert_results/
+**/logs/
+**/*.log
+
+# Cache de Python
 **/__pycache__/
 **/*.pyc
+*.py[cod]
+*$py.class
+
+# IDEs y editores
 .vscode/
 .DS_Store
 .idea/
+*.swp
+*.swo
+
+# Variables de entorno
 .env
 .env.*
+
+# Resultados temporales
+**/checkpoint*/
+**/*.npy
