@@ -1,0 +1,171 @@
+\section{Análisis del Problema}\label{sec:analisis}
+
+\subsection{Descripción del Dataset}
+
+El dataset está compuesto por descripciones de películas en inglés, donde cada instancia contiene:
+\begin{itemize}
+    \item \textbf{Título de la película} (\texttt{movie\_name}): Nombre en inglés.
+    \item \textbf{Descripción} (\texttt{description}): Sinopsis o resumen argumental.
+    \item \textbf{Géneros} (\texttt{genre}): Lista de etiquetas separadas por comas.
+\end{itemize}
+
+El conjunto de entrenamiento contiene \textbf{8.479 películas} distribuidas en \textbf{18 géneros}:
+\begin{quote}
+\texttt{Action, Adventure, Animation, Comedy, Crime, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, TV Movie, Thriller, War, Western}
+\end{quote}
+
+La naturaleza \textbf{multi-etiqueta} del problema implica que cada película puede pertenecer simultáneamente a múltiples géneros. Por ejemplo:
+\begin{itemize}
+    \item \emph{Django Unchained}: \texttt{Drama, Western}
+    \item \emph{Batman v Superman}: \texttt{Action, Adventure, Fantasy}
+    \item \emph{Charlotte's Web}: \texttt{Family, Music, Animation}
+\end{itemize}
+
+\subsection{Desafíos Principales}
+
+\subsubsection{Desbalance de Clases}
+
+El dataset presenta un fuerte \textbf{desbalance entre géneros}, donde algunos como \texttt{Drama}, \texttt{Comedy} y \texttt{Action} dominan las frecuencias, mientras que otros como \texttt{War}, \texttt{Western} o \texttt{History} son minoritarios. Este desbalance hace que:
+
+\begin{itemize}
+    \item Los modelos tiendan a favorecer clases mayoritarias.
+    \item Las métricas como \textbf{F1 macro} (promedio no ponderado) sean más representativas que el accuracy total, pues penalizan el mal desempeño en clases raras.
+    \item Sea necesario aplicar técnicas de balanceo como \texttt{class\_weight='balanced'} o umbrales de decisión específicos por clase.
+\end{itemize}
+
+\subsubsection{Co-ocurrencias y Dependencias entre Etiquetas}
+
+Existen patrones de \textbf{co-ocurrencia frecuente} entre géneros que el modelo debe aprender:
+\begin{itemize}
+    \item \texttt{Action} + \texttt{Thriller} + \texttt{Crime}
+    \item \texttt{Family} + \texttt{Animation} + \texttt{Adventure}
+    \item \texttt{Romance} + \texttt{Drama}
+    \item \texttt{Horror} + \texttt{Mystery}
+\end{itemize}
+
+Esta estructura correlacionada complica la clasificación, ya que no basta con predecir etiquetas independientemente. Los modelos deben capturar estas relaciones para mejorar la precisión.
+
+\subsubsection{Variabilidad Lingüística}
+
+Las descripciones presentan gran \textbf{diversidad en longitud y estilo narrativo}:
+\begin{itemize}
+    \item \textbf{Descripciones cortas}: Resúmenes telegráficos de pocas palabras.
+    \item \textbf{Descripciones largas}: Sinopsis detalladas con múltiples oraciones.
+    \item \textbf{Sinónimos y paráfrasis}: Distintas formas de expresar el mismo concepto (\emph{``cop''} vs. \emph{``detective''}, \emph{``love story''} vs. \emph{``romance''}).
+    \item \textbf{Información implícita}: Géneros que se infieren por el tono o contexto sin menciones explícitas.
+\end{itemize}
+
+\subsection{Métricas de Evaluación}
+
+Dado el desbalance y la naturaleza multi-etiqueta, se utilizan las siguientes métricas:
+
+\begin{itemize}
+    \item \textbf{F1 Macro}: Promedio no ponderado de F1 por clase. Refleja el desempeño en géneros minoritarios.
+    \item \textbf{F1 Micro}: Promedio ponderado global. Favorece clases mayoritarias.
+    \item \textbf{Subset Accuracy}: Coincidencia exacta del conjunto de etiquetas. Muy estricta en multi-etiqueta.
+    \item \textbf{Hamming Loss}: Fracción de etiquetas incorrectas. Penaliza errores individuales.
+    \item \textbf{Precision/Recall Macro}: Evalúan falsos positivos y falsos negativos por clase.
+\end{itemize}
+
+El objetivo principal es maximizar \textbf{F1 macro}, priorizando un desempeño equilibrado en todos los géneros.
+
+\subsection{Enfoques de Modelado}
+
+Para abordar este problema, se exploraron dos familias de modelos:
+
+\subsubsection{Modelos Clásicos de ML}
+
+Se implementaron modelos tradicionales basados en \textbf{representaciones TF-IDF}:
+
+\paragraph{Arquitectura:}
+\begin{itemize}
+    \item \textbf{Preprocesamiento}: Concatenación de título y descripción separados por \texttt{[SEP]}.
+    \item \textbf{Features TF-IDF}:
+    \begin{itemize}
+        \item \textit{Word-level}: n-gramas (1-3), \texttt{max\_features=500k}, \texttt{max\_df=0.85}.
+        \item \textit{Character-level}: n-gramas (3-6), captura morfología y errores tipográficos.
+    \end{itemize}
+    \item \textbf{Modelos clasificadores}:
+    \begin{itemize}
+        \item \texttt{OneVsRestClassifier(LogisticRegression)}: Con \texttt{C=8.0}, \texttt{class\_weight='balanced'}.
+        \item \texttt{LinearSVC}: Máquinas de vectores de soporte lineales con calibración de probabilidades.
+        \item \texttt{MultinomialNB}: Naive Bayes multinomial como baseline.
+    \end{itemize}
+    \item \textbf{Calibración de umbrales}: Búsqueda exhaustiva de umbrales óptimos por clase mediante optimización de F1 en validación.
+\end{itemize}
+
+\paragraph{Mejoras implementadas:}
+\begin{itemize}
+    \item Aumento del espacio de features (500k vs. 300k).
+    \item Trigramas para capturar contexto más amplio.
+    \item Balanceo de clases mediante \texttt{class\_weight}.
+    \item Calibración fina de umbrales (50+ candidatos por clase).
+    \item \textbf{Ensemble ponderado}: Combinación lineal de LogReg (0.5), SVC (0.35) y NB (0.15).
+\end{itemize}
+
+\paragraph{Resultados esperados:}
+\begin{itemize}
+    \item \textbf{Modelo único}: F1 macro $\sim$0.58--0.62, F1 micro $\sim$0.65--0.68.
+    \item \textbf{Ensemble}: F1 macro $\sim$0.60--0.65, F1 micro $\sim$0.67--0.70.
+\end{itemize}
+
+\subsubsection{Modelos Basados en Transformers}
+
+Se adoptaron arquitecturas de \textbf{aprendizaje profundo} con representaciones contextuales:
+
+\paragraph{Modelos explorados:}
+\begin{itemize}
+    \item \textbf{DistilBERT}: Versión destilada de BERT, eficiente y rápida.
+    \item \textbf{DeBERTa-v3-base}: Estado del arte en comprensión del lenguaje, con atención desacoplada mejorada.
+    \item \textbf{BGE (BAAI General Embedding)}: Sentence embeddings pre-entrenados para tareas semánticas.
+\end{itemize}
+
+\paragraph{Técnicas avanzadas:}
+\begin{itemize}
+    \item \textbf{Fine-tuning}: Ajuste de pesos pre-entrenados en el dataset de películas.
+    \item \textbf{Data Augmentation}: Back-translation (inglés $\rightarrow$ alemán $\rightarrow$ inglés) para aumentar diversidad del training set (~35\% de muestras).
+    \item \textbf{Test-Time Augmentation (TTA)}: Promediado de predicciones sobre versiones aumentadas del test set.
+    \item \textbf{Optimización de pesos con Optuna}: Búsqueda Bayesiana de pesos óptimos en ensembles.
+    \item \textbf{Ensemble multi-representación}: Combinación de TF-IDF, embeddings BGE y Transformers.
+\end{itemize}
+
+\paragraph{Arquitectura del ensemble final:}
+\begin{enumerate}
+    \item \textbf{Rama clásica}: LogReg + SVC sobre TF-IDF y BGE embeddings.
+    \item \textbf{Rama DeBERTa}: Fine-tuned con data augmentation.
+    \item \textbf{Rama DistilBERT}: Fine-tuned como modelo complementario.
+    \item \textbf{Agregación ponderada}: Optimización de pesos mediante validación cruzada.
+\end{enumerate}
+
+\paragraph{Resultados esperados:}
+\begin{itemize}
+    \item \textbf{DeBERTa individual}: F1 macro $\sim$0.65--0.68.
+    \item \textbf{Ensemble híbrido}: F1 macro $\sim$0.68--0.72.
+\end{itemize}
+
+\subsection{Estrategias de Validación}
+
+Para evitar \textbf{data leakage} y sobreajuste, se aplicaron las siguientes buenas prácticas:
+
+\begin{itemize}
+    \item \textbf{Split estratificado}: 90\% entrenamiento, 10\% validación (seed=42).
+    \item \textbf{Augmentation solo en train}: Las muestras sintéticas no contaminan validación ni test.
+    \item \textbf{TF-IDF fit/transform separado}: Ajuste solo en train, transformación independiente en val/test.
+    \item \textbf{Calibración de umbrales en validación}: Parte legítima del proceso de modelado.
+    \item \textbf{Optimización de pesos en validación}: Uso de Optuna para búsqueda Bayesiana.
+    \item \textbf{Validación externa con \texttt{validator.py}}: Script oficial para métricas reproducibles.
+\end{itemize}
+
+\subsection{Conclusiones del Análisis}
+
+El problema de clasificación multi-etiqueta de géneros cinematográficos presenta desafíos significativos:
+
+\begin{enumerate}
+    \item El \textbf{desbalance extremo} requiere técnicas de balanceo y métricas macro.
+    \item Las \textbf{co-ocurrencias de géneros} exigen modelos capaces de capturar dependencias.
+    \item La \textbf{diversidad lingüística} favorece representaciones ricas (trigramas, embeddings contextuales).
+    \item Los \textbf{ensembles híbridos} (clásicos + Transformers) ofrecen el mejor equilibrio entre precisión y robustez.
+    \item Las \textbf{técnicas de augmentation y TTA} mejoran la generalización sin sobreajustar.
+\end{enumerate}
+
+La combinación de modelos clásicos calibrados con Transformers de última generación permite alcanzar un desempeño competitivo, superando las limitaciones de cada enfoque individual.
